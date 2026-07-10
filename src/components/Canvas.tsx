@@ -27,6 +27,20 @@ interface CanvasProps {
 const BOARD_WIDTH = 5000;
 const BOARD_HEIGHT = 4000;
 
+const MIN_NODE_WIDTH = 120;
+const MIN_NODE_HEIGHT = 80;
+const MAX_NODE_WIDTH = 600;
+const MAX_NODE_HEIGHT = 500;
+
+type ResizeHandle = 'nw' | 'ne' | 'sw' | 'se';
+
+const RESIZE_CURSORS: Record<ResizeHandle, string> = {
+  nw: 'nwse-resize',
+  se: 'nwse-resize',
+  ne: 'nesw-resize',
+  sw: 'nesw-resize',
+};
+
 export default function Canvas({
   nodes,
   connections,
@@ -49,6 +63,17 @@ export default function Canvas({
   const [panStart, setPanStart] = useState<Point>({ x: 0, y: 0 });
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<Point>({ x: 0, y: 0 });
+
+  // Corner resize state
+  const [resizingNode, setResizingNode] = useState<{
+    id: string;
+    handle: ResizeHandle;
+    startMouse: Point;
+    startX: number;
+    startY: number;
+    startWidth: number;
+    startHeight: number;
+  } | null>(null);
   
   // Connection dragging state
   const [activePortDrag, setActivePortDrag] = useState<{
@@ -189,7 +214,7 @@ export default function Canvas({
     // Spacebar or middle button can always pan
     const forcePan = isMiddleButton || (isLeftButton && e.shiftKey);
 
-    if (forcePan || (mode === 'select' && !draggedNodeId && !activePortDrag)) {
+    if (forcePan || (mode === 'select' && !draggedNodeId && !activePortDrag && !resizingNode)) {
       // Start panning the whole board
       setIsPanning(true);
       setPanStart({ x: e.clientX - transform.x, y: e.clientY - transform.y });
@@ -204,6 +229,29 @@ export default function Canvas({
       setCurrentStrokePoints([boardPoint]);
       if (e.cancelable) e.preventDefault();
     }
+  };
+
+  const clamp = (value: number, min: number, max: number) =>
+    Math.max(min, Math.min(max, value));
+
+  const startNodeResize = (
+    e: React.MouseEvent,
+    node: WorkflowNode,
+    handle: ResizeHandle
+  ) => {
+    if (e.button !== 0 || mode !== 'select') return;
+    e.stopPropagation();
+    e.preventDefault();
+    const boardPoint = getBoardCoords(e.clientX, e.clientY);
+    setResizingNode({
+      id: node.id,
+      handle,
+      startMouse: boardPoint,
+      startX: node.x,
+      startY: node.y,
+      startWidth: node.width,
+      startHeight: node.height,
+    });
   };
 
   // MOUSE MOVE HANDLER
@@ -221,6 +269,54 @@ export default function Canvas({
       const boardPoint = getBoardCoords(e.clientX, e.clientY);
       // Limit frequency to make straight paths less jagged
       setCurrentStrokePoints((prev) => [...prev, boardPoint]);
+      return;
+    }
+
+    if (resizingNode) {
+      const boardPoint = getBoardCoords(e.clientX, e.clientY);
+      const dx = boardPoint.x - resizingNode.startMouse.x;
+      const dy = boardPoint.y - resizingNode.startMouse.y;
+      const { handle, startX, startY, startWidth, startHeight } = resizingNode;
+
+      let newWidth = startWidth;
+      let newHeight = startHeight;
+      let newX = startX;
+      let newY = startY;
+
+      if (handle.includes('e')) {
+        newWidth = clamp(startWidth + dx, MIN_NODE_WIDTH, MAX_NODE_WIDTH);
+      }
+      if (handle.includes('s')) {
+        newHeight = clamp(startHeight + dy, MIN_NODE_HEIGHT, MAX_NODE_HEIGHT);
+      }
+      if (handle.includes('w')) {
+        newWidth = clamp(startWidth - dx, MIN_NODE_WIDTH, MAX_NODE_WIDTH);
+        newX = startX + (startWidth - newWidth);
+      }
+      if (handle.includes('n')) {
+        newHeight = clamp(startHeight - dy, MIN_NODE_HEIGHT, MAX_NODE_HEIGHT);
+        newY = startY + (startHeight - newHeight);
+      }
+
+      // Snap to 10px grid
+      newWidth = Math.round(newWidth / 10) * 10;
+      newHeight = Math.round(newHeight / 10) * 10;
+      newX = Math.round(newX / 10) * 10;
+      newY = Math.round(newY / 10) * 10;
+
+      // Re-clamp after snap and keep opposite edge anchored for W/N handles
+      newWidth = clamp(newWidth, MIN_NODE_WIDTH, MAX_NODE_WIDTH);
+      newHeight = clamp(newHeight, MIN_NODE_HEIGHT, MAX_NODE_HEIGHT);
+      if (handle.includes('w')) newX = startX + startWidth - newWidth;
+      if (handle.includes('n')) newY = startY + startHeight - newHeight;
+
+      onUpdateNodes(
+        nodes.map((n) =>
+          n.id === resizingNode.id
+            ? { ...n, x: newX, y: newY, width: newWidth, height: newHeight }
+            : n
+        )
+      );
       return;
     }
 
@@ -265,6 +361,11 @@ export default function Canvas({
         onUpdateStrokes([...strokes, newStroke]);
       }
       setCurrentStrokePoints([]);
+      return;
+    }
+
+    if (resizingNode) {
+      setResizingNode(null);
       return;
     }
 
@@ -418,12 +519,17 @@ export default function Canvas({
       onMouseUp={handleMouseUp}
       onWheel={handleWheel}
       className={`relative flex-1 h-[calc(100vh-2rem)] bg-neutral-100 overflow-hidden border-4 border-black select-none shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] ${
-        mode === 'select' ? 'cursor-grab active:cursor-grabbing' : 'cursor-crosshair'
+        resizingNode
+          ? ''
+          : mode === 'select'
+            ? 'cursor-grab active:cursor-grabbing'
+            : 'cursor-crosshair'
       }`}
       style={{
         backgroundImage: 'radial-gradient(circle, #a3a3a3 1px, transparent 1px)',
         backgroundSize: '24px 24px',
-        backgroundPosition: `${transform.x}px ${transform.y}px`
+        backgroundPosition: `${transform.x}px ${transform.y}px`,
+        cursor: resizingNode ? RESIZE_CURSORS[resizingNode.handle] : undefined,
       }}
     >
       {/* WHITEBOARD CORE CONTAINER (PAN/ZOOM SENSITIVE) */}
@@ -593,14 +699,14 @@ export default function Canvas({
           return (
             <div
               key={node.id}
-              className={cardClass}
+              className={`${cardClass} group/node`}
               style={{
                 left: node.x,
                 top: node.y,
                 width: node.width,
                 height: node.height,
                 backgroundColor: node.color,
-                zIndex: draggedNodeId === node.id ? 40 : 10,
+                zIndex: draggedNodeId === node.id || resizingNode?.id === node.id ? 40 : 10,
               }}
               onDoubleClick={() => onEditNode(node)}
             >
@@ -660,16 +766,16 @@ export default function Canvas({
 
               {/* Central text content */}
               <div 
-                className={`flex-1 flex flex-col min-h-0 overflow-hidden relative z-10 ${innerClass || ''}`}
+                className={`flex-1 flex max-auto flex-col justify-center min-h-0 overflow-hidden relative z-10 ${innerClass || ''}`}
                 onDoubleClick={(e) => {
                   e.stopPropagation();
                   onEditNode(node);
                 }}
               >
-                <h4 className="text-sm font-black uppercase tracking-tight text-black truncate mb-0.5">
+                <h4 className="text-sm font-black uppercase tracking-tight text-black mb-0.5">
                   {node.title}
                 </h4>
-                <p className="text-xs font-semibold text-neutral-800 leading-tight overflow-y-auto break-words whitespace-pre-wrap pr-1 flex-1">
+                <p className="text-xs font-semibold text-neutral-800 leading-tight overflow-y-auto break-words whitespace-pre-wrap pr-1">
                   {node.content}
                 </p>
               </div>
@@ -694,6 +800,28 @@ export default function Canvas({
                   >
                     <div className="w-1.5 h-1.5 bg-black rounded-full" />
                   </div>
+
+                  {/* Corner resize handles — hiện khi hover node hoặc đang resize */}
+                  {(
+                    [
+                      { handle: 'nw' as const, className: 'left-[-5px] top-[-5px]' },
+                      { handle: 'ne' as const, className: 'right-[-5px] top-[-5px]' },
+                      { handle: 'sw' as const, className: 'left-[-5px] bottom-[-5px]' },
+                      { handle: 'se' as const, className: 'right-[-5px] bottom-[-5px]' },
+                    ] as const
+                  ).map(({ handle, className }) => (
+                    <div
+                      key={handle}
+                      onMouseDown={(e) => startNodeResize(e, node, handle)}
+                      className={`absolute w-3 h-3 bg-white border-[2.5px] border-black z-30 hover:bg-yellow-300 transition-opacity ${className} ${
+                        resizingNode?.id === node.id
+                          ? 'opacity-100'
+                          : 'opacity-0 group-hover/node:opacity-100'
+                      }`}
+                      style={{ cursor: RESIZE_CURSORS[handle] }}
+                      title="Kéo để đổi kích thước"
+                    />
+                  ))}
                 </>
               )}
             </div>

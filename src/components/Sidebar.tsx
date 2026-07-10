@@ -61,7 +61,7 @@ export default function Sidebar({
         <div className="flex items-center gap-2 bg-yellow-300 p-2 border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] rotate-[-1deg] mb-2">
           <Sparkles className="w-6 h-6 text-black fill-black" />
           <h1 className="text-xl font-black uppercase tracking-tight text-black">
-            BRUTALFLOW
+            FLOW-SKETCHER
           </h1>
         </div>
         <p className="text-xs font-bold text-neutral-700 italic">

@@ -35,8 +35,6 @@ export default function NodeEditor({ node, isOpen, onClose, onSave, onDelete }: 
   const [content, setContent] = useState('');
   const [color, setColor] = useState('');
   const [type, setType] = useState<NodeType>('note');
-  const [width, setWidth] = useState(200);
-  const [height, setHeight] = useState(120);
 
   useEffect(() => {
     if (node) {
@@ -44,8 +42,6 @@ export default function NodeEditor({ node, isOpen, onClose, onSave, onDelete }: 
       setContent(node.content);
       setColor(node.color);
       setType(node.type);
-      setWidth(node.width);
-      setHeight(node.height);
     }
   }, [node, isOpen]);
 
@@ -59,8 +55,6 @@ export default function NodeEditor({ node, isOpen, onClose, onSave, onDelete }: 
       content: content.trim(),
       color,
       type,
-      width: Math.max(120, Math.min(600, width)),
-      height: Math.max(80, Math.min(500, height)),
     });
     onClose();
   };
@@ -128,32 +122,6 @@ export default function NodeEditor({ node, isOpen, onClose, onSave, onDelete }: 
               rows={3}
               className="w-full p-2.5 border-3 border-black bg-yellow-50 font-semibold focus:outline-none focus:bg-white placeholder-neutral-500 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
             />
-          </div>
-
-          {/* Size inputs */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-black uppercase mb-1 tracking-wider">Chiều rộng (px)</label>
-              <input
-                type="number"
-                value={width}
-                onChange={(e) => setWidth(parseInt(e.target.value) || 120)}
-                min={120}
-                max={600}
-                className="w-full p-2 border-3 border-black bg-yellow-50 font-bold focus:outline-none shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-black uppercase mb-1 tracking-wider">Chiều cao (px)</label>
-              <input
-                type="number"
-                value={height}
-                onChange={(e) => setHeight(parseInt(e.target.value) || 80)}
-                min={80}
-                max={500}
-                className="w-full p-2 border-3 border-black bg-yellow-50 font-bold focus:outline-none shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
-              />
-            </div>
           </div>
 
           {/* Color Presets */}
