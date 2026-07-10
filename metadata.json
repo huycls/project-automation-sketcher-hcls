@@ -1,0 +1,6 @@
+{
+  "name": "Sticky Note & Workflow Visualizer",
+  "description": "An interactive whiteboard featuring free-form paint drawings, drag-and-drop sticky notes, connected logic blocks, and high-quality PDF/image export styled in high-contrast Neo-Brutalisim.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
